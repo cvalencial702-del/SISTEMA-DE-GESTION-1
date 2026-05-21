@@ -1842,10 +1842,11 @@
               <table id="tabla-vuelos" style="min-width:700px">
                 <thead>
                   <tr>
+                    <th style="width:95px;text-align:center">Mes</th>
                     <th style="width:170px">Origen → Destino</th>
                     <th style="width:80px;text-align:center">Tipo vuelo</th>
                     <th style="width:80px;text-align:center"># Viajeros</th>
-                    <th style="width:90px;text-align:center"># Trayectos<br><span style="font-weight:400;color:var(--muted)">(ida=1, ida/vta=2)</span></th>
+
                     <th style="width:110px;text-align:right">CO₂ Avianca<br><span style="font-weight:400;color:var(--muted)">(kg/pasajero/trayecto)</span></th>
                     <th style="width:120px;text-align:right;background:#ede9fe;color:#6d28d9">Total t CO₂e</th>
                     <th style="width:50px"></th>
@@ -1856,7 +1857,7 @@
                 </tbody>
                 <tfoot>
                   <tr style="background:#f5f3ff;border-top:2px solid #ddd6fe">
-                    <td colspan="5" style="text-align:right;font-weight:700;color:#6d28d9;padding:10px 12px">TOTAL TRANSPORTE AÉREO</td>
+                    <td colspan="4" style="text-align:right;font-weight:700;color:#6d28d9;padding:10px 12px">TOTAL TRANSPORTE AÉREO</td>
                     <td style="text-align:right;font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#6d28d9;padding:10px 12px" id="res-aereo">— t CO₂e</td>
                     <td></td>
                   </tr>
@@ -1867,9 +1868,7 @@
             <button class="btn btn-primary btn-sm" onclick="agregarVuelo()" style="margin-right:8px">
               ➕ Agregar trayecto
             </button>
-            <button class="btn btn-ghost btn-sm" onclick="cargarVuelos2025()">
-              📋 Cargar datos 2025 (XLSM)
-            </button>
+
           </div>
 
           <!-- BOTTOM 3 SOURCES -->
@@ -4702,11 +4701,11 @@ function agregarVuelo() {
   huellaDB.vuelos = huellaDB.vuelos || [];
   huellaDB.vuelos.push({
     id: Date.now(),
+    mes: 'Enero',
     origen: '', destino: '',
     tipo: 'nacional',
     viajeros: 1,
-    trayectos: 2,        // 1=ida, 2=ida+vuelta
-    kgAvca: 0,           // kg CO2e por pasajero×trayecto (desde Avianca CHOOOSE)
+    kgAvca: 0,           // kg CO2e por pasajero (desde Avianca CHOOOSE)
   });
   saveHuellaDB();
   renderVuelosList();
@@ -4730,7 +4729,7 @@ function updateVuelo(id, field, value) {
     v[field] = value;
   }
   // recalc tco2e for this row
-  v.tco2e = (v.kgAvca * v.viajeros * v.trayectos) / 1000;
+  v.tco2e = (v.kgAvca * (v.viajeros || 1) * 2) / 1000;  // siempre ida y vuelta
   saveHuellaDB();
   // update total cell for this row
   const totalEl = document.getElementById('vuelo-total-' + id);
@@ -4738,24 +4737,9 @@ function updateVuelo(id, field, value) {
   calcHuella();
 }
 
-function cargarVuelos2025() {
-  huellaDB.vuelos = [
-    { id: 1, origen:'BOG', destino:'MDE', tipo:'nacional', viajeros:1, trayectos:2, kgAvca:47.4, tco2e:0.0948 },
-    { id: 2, origen:'BOG', destino:'MDE', tipo:'nacional', viajeros:1, trayectos:2, kgAvca:47.4, tco2e:0.0948 },
-    { id: 3, origen:'BOG', destino:'MDE', tipo:'nacional', viajeros:1, trayectos:2, kgAvca:47.4, tco2e:0.0948 },
-    { id: 4, origen:'BOG', destino:'MDE', tipo:'nacional', viajeros:1, trayectos:2, kgAvca:47.4, tco2e:0.0948 },
-    { id: 5, origen:'BOG', destino:'ADZ', tipo:'nacional', viajeros:1, trayectos:2, kgAvca:89.2, tco2e:0.1784 },
-    { id: 6, origen:'BOG', destino:'ADZ', tipo:'nacional', viajeros:1, trayectos:2, kgAvca:89.2, tco2e:0.1784 },
-    { id: 7, origen:'BOG', destino:'ADZ', tipo:'nacional', viajeros:1, trayectos:2, kgAvca:89.2, tco2e:0.1784 },
-    { id: 8, origen:'BOG', destino:'ADZ', tipo:'nacional', viajeros:1, trayectos:2, kgAvca:89.2, tco2e:0.1784 },
-    { id: 9, origen:'BOG', destino:'ADZ', tipo:'nacional', viajeros:1, trayectos:2, kgAvca:89.2, tco2e:0.1784 },
-    { id:10, origen:'BOG', destino:'ADZ', tipo:'nacional', viajeros:1, trayectos:2, kgAvca:89.2, tco2e:0.1784 },
-  ];
-  saveHuellaDB();
-  renderVuelosList();
-  calcHuella();
-  showToast('Datos 2025 cargados — ajusta los valores de Avianca CHOOOSE según tus trayectos reales.');
-}
+
+  // cargarVuelos2025() eliminado
+
 
 function renderVuelosList() {
   const tbody = document.getElementById('tbody-vuelos');
@@ -4770,6 +4754,13 @@ function renderVuelosList() {
   tbody.innerHTML = vuelos.map(v => {
     const tco2e = v.tco2e !== undefined ? v.tco2e : (v.kgAvca * v.viajeros * v.trayectos) / 1000;
     return `<tr>
+      <td>
+        <select onchange="updateVuelo(${v.id},'mes',this.value)"
+          style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px;font-family:'DM Sans',sans-serif;outline:none;background:#fff;color:var(--text);width:100%">
+          ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+            .map(m => `<option value="${m}" ${(v.mes||'Enero')===m?'selected':''}>${m}</option>`).join('')}
+        </select>
+      </td>
       <td>
         <div style="display:flex;gap:4px;align-items:center">
           <input type="text" value="${v.origen||''}" placeholder="Origen"
@@ -4794,15 +4785,7 @@ function renderVuelosList() {
           style="width:55px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-family:'DM Sans',sans-serif;text-align:center;outline:none"
           oninput="updateVuelo(${v.id},'viajeros',this.value)">
       </td>
-      <td style="text-align:center">
-        <select onchange="updateVuelo(${v.id},'trayectos',this.value)"
-          style="padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;background:#fff;color:var(--text)">
-          <option value="1" ${v.trayectos==1?'selected':''}>1 — Solo ida</option>
-          <option value="2" ${v.trayectos==2?'selected':''}>2 — Ida y vuelta</option>
-          <option value="3" ${v.trayectos==3?'selected':''}>3 — Trayectos</option>
-          <option value="4" ${v.trayectos==4?'selected':''}>4 — Trayectos</option>
-        </select>
-      </td>
+
       <td style="text-align:right">
         <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
           <input type="number" value="${v.kgAvca||''}" min="0" step="0.01" placeholder="kg CO₂"
@@ -4831,7 +4814,7 @@ let chartHuellaPie = null, chartHuellaScope = null;
 function calcHuella() {
   // ─── Aéreo (suma de viajeros × trayectos × kg Avianca CHOOOSE) ───
   const tAereo = (huellaDB.vuelos||[]).reduce((a,v) => {
-    const t = v.tco2e !== undefined ? v.tco2e : (v.kgAvca * (v.viajeros||1) * (v.trayectos||1)) / 1000;
+    const t = v.tco2e !== undefined ? v.tco2e : (v.kgAvca * (v.viajeros||1) * 2) / 1000;
     return a + t;
   }, 0);
   const elResAereo = document.getElementById('res-aereo');
