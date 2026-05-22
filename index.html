@@ -1840,7 +1840,6 @@
               <option value="2026">2026</option>
               <option value="2027">2027</option>
             </select>
-            <span id="huella-año-badge" style="display:none;font-size:11px;padding:3px 10px;border-radius:20px;background:#dcfce7;color:#166534;font-weight:600;align-items:center;gap:4px"></span>
             <button class="huella-save-btn" onclick="guardarRegistroHuella()" title="Guardar registro de huella de carbono para el año seleccionado">
               💾 Guardar registro
             </button>
@@ -1889,7 +1888,7 @@
             <div class="inline-alert info" style="margin-bottom:14px">
               <span>💡</span>
               <div>Para cada trayecto, consulta <a href="https://avianca.chooose.today/" target="_blank" style="color:var(--water);font-weight:600">avianca.chooose.today</a>
-              e ingresa el valor de CO₂ por pasajero que entrega la calculadora. El sistema multiplica ese valor por el número de viajeros. Fórmula: (kg CO₂ × viajeros) ÷ 1000 = t CO₂e</div>
+              e ingresa el valor de CO₂ por pasajero que entrega la calculadora. El sistema multiplica ese valor por el número de viajes (personas × ida/vuelta).</div>
             </div>
 
             <!-- TABLA DE DESPLAZAMIENTOS -->
@@ -2482,7 +2481,8 @@ async function sbLoadInformes() {
   const { data, error } = await sb
     .from('eco_informes')
     .select('id,año,trimestre,titulo,org,responsable,fecha_gen,resumen,ts')
-    .order('año', { ascending: false });
+    .order('año', { ascending: false })
+    .order('trimestre', { ascending: false });
   if (error) { console.error('sbLoadInformes', error); return; }
   _informesCache = data || [];
 }
@@ -3790,10 +3790,10 @@ function generarReporte() {
   const now = new Date();
 
   // ─── Huella de carbono trimestral ───
-  const hDB = (() => { try { const s = localStorage.getItem('huella_ghg_v1'); return s ? JSON.parse(s) : null; } catch(e) { return null; } })();
+  const hDB = (() => { try { const key = (typeof getHuellaKey==='function') ? getHuellaKey(año) : ('huella_ghg_v1_'+año); const s = localStorage.getItem(key); return s ? JSON.parse(s) : null; } catch(e) { return null; } })();
   let huellaHtml = '<p style="color:#888">Sin datos de huella de carbono registrados para este período.</p>';
   if (hDB) {
-    const tAereo    = (hDB.vuelos||[]).reduce((a,v) => a + (v.tco2e||((v.kgAvca*(v.viajeros||1)*(v.trayectos||1))/1000)), 0);
+    const tAereo    = (hDB.vuelos||[]).reduce((a,v) => a + ((+v.kgAvca||0)*(+v.viajeros||1)/1000), 0);
     const kmH       = parseFloat(hDB.km) || 0;
     const tTerrH    = ((kmH / 10) * 2.68) / 1000;
     const kwhH      = parseFloat(hDB.kwh) || 0;
@@ -4886,19 +4886,14 @@ const GHG = {
 };
 
 const HUELLA_KEY_BASE = 'huella_ghg_v1';
-function getHuellaKey(año) {
-  return HUELLA_KEY_BASE + '_' + (año || 2025);
-}
+function getHuellaKey(año) { return HUELLA_KEY_BASE + '_' + (año||2025); }
 let huellaDB = { vuelos: [], terrestres: [], año: 2025 };
 
 function loadHuellaDB(año) {
   const targetAño = parseInt(año) || 2025;
   try {
     const s = localStorage.getItem(getHuellaKey(targetAño));
-    if (s) {
-      huellaDB = JSON.parse(s);
-    } else {
-      // Año sin datos — iniciar completamente limpio
+    if (s) { huellaDB = JSON.parse(s); } else {
       huellaDB = { año: targetAño, vuelos: [], km: 0, kwh: 0, m3: 0, res_org: 0, res_inorg: 0, res_rec: 0 };
     }
     huellaDB.año = targetAño;
@@ -4906,9 +4901,7 @@ function loadHuellaDB(año) {
     huellaDB = { año: targetAño, vuelos: [], km: 0, kwh: 0, m3: 0, res_org: 0, res_inorg: 0, res_rec: 0 };
   }
 }
-function saveHuellaDB() {
-  localStorage.setItem(getHuellaKey(huellaDB.año || 2025), JSON.stringify(huellaDB));
-}
+function saveHuellaDB() { localStorage.setItem(getHuellaKey(huellaDB.año||2025), JSON.stringify(huellaDB)); }
 
 // ── REGISTROS POR AÑO ──
 const HUELLA_RECORDS_KEY = 'huella_records_v1';
@@ -5127,7 +5120,7 @@ function eliminarRegistroHuella(año) {
 
 function initHuella() {
   const año = parseInt(document.getElementById('huella-año').value) || 2025;
-  loadHuellaDB(año); // carga SOLO los datos de ese año
+  loadHuellaDB(año);
 
   // Auto-populate year dropdown from energy records
   const añoSel = document.getElementById('huella-año');
@@ -5139,34 +5132,16 @@ function initHuella() {
   cargarKwhDesdeRegistros();
   cargarM3DesdeRegistros();
   cargarResiduosDesdeRegistros();
-  // Restaurar valores del año seleccionado (limpiar si es año nuevo)
-  const _fld = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-  _fld('huella-km',       huellaDB.km);
-  _fld('huella-kwh',      huellaDB.kwh);
-  _fld('huella-m3',       huellaDB.m3);
-  _fld('huella-res-org',  huellaDB.res_org);
-  _fld('huella-res-inorg',huellaDB.res_inorg);
-  _fld('huella-res-rec',  huellaDB.res_rec);
-
-  // Si el año no tiene kwh guardado, auto-cargar de registros de energía
-  if (!huellaDB.kwh || huellaDB.kwh === 0) cargarKwhDesdeRegistros();
-  if (!huellaDB.m3  || huellaDB.m3  === 0) cargarM3DesdeRegistros();
-  if ((!huellaDB.res_org && !huellaDB.res_inorg && !huellaDB.res_rec)) cargarResiduosDesdeRegistros();
-
-  // Badge: indicar si el año ya tiene datos de vuelos
-  const _badge = document.getElementById('huella-año-badge');
-  if (_badge) {
-    const nv = (huellaDB.vuelos||[]).length;
-    const km = huellaDB.km || 0;
-    if (nv > 0 || km > 0) {
-      _badge.style.display = 'inline-flex';
-      _badge.textContent = `✓ ${nv} vuelo${nv!==1?'s':''} · ${km.toLocaleString('es-CO')} km`;
-      _badge.style.cssText += ';background:#dcfce7;color:#166534;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600';
-    } else {
-      _badge.style.display = 'none';
-    }
-  }
-
+  const _f = (id,v) => { const el=document.getElementById(id); if(el) el.value=v||''; };
+  _f('huella-km',       huellaDB.km);
+  _f('huella-kwh',      huellaDB.kwh);
+  _f('huella-m3',       huellaDB.m3);
+  _f('huella-res-org',  huellaDB.res_org);
+  _f('huella-res-inorg',huellaDB.res_inorg);
+  _f('huella-res-rec',  huellaDB.res_rec);
+  if (!huellaDB.kwh) cargarKwhDesdeRegistros();
+  if (!huellaDB.m3)  cargarM3DesdeRegistros();
+  if (!huellaDB.res_org && !huellaDB.res_inorg) cargarResiduosDesdeRegistros();
   calcHuella();
 }
 
@@ -5202,8 +5177,8 @@ function cargarResiduosDesdeRegistros() {
 // ── VUELOS — tabla con kg CO2 de Avianca CHOOOSE ──
 
 function agregarVuelo() {
-  const _añoVuelo = parseInt(document.getElementById('huella-año')?.value) || 2025;
-  if (huellaDB.año !== _añoVuelo) loadHuellaDB(_añoVuelo);
+  const _añoV = parseInt(document.getElementById('huella-año')?.value)||2025;
+  if (huellaDB.año !== _añoV) loadHuellaDB(_añoV);
   huellaDB.vuelos = huellaDB.vuelos || [];
   huellaDB.vuelos.push({
     id: Date.now(),
@@ -5230,14 +5205,13 @@ function updateVuelo(id, field, value) {
   const v = (huellaDB.vuelos||[]).find(x => x.id == id);
   if (!v) return;
   if (field === 'viajeros' || field === 'trayectos' || field === 'kgAvca') {
-    // Normalizar coma decimal (26,245 → 26.245)
-    const normalized = typeof value === 'string' ? value.replace(',', '.') : value;
-    v[field] = parseFloat(normalized) || 0;
+    const nv = typeof value==='string' ? value.replace(',','.') : value;
+    v[field] = parseFloat(nv) || 0;
   } else {
     v[field] = value;
   }
   // recalc tco2e for this row
-  v.tco2e = ((+v.kgAvca||0) * (+v.viajeros||1)) / 1000;  // =(H*I)/1000 igual que Excel
+  v.tco2e = ((+v.kgAvca||0) * (+v.viajeros||1)) / 1000;
   saveHuellaDB();
   // update total cell for this row
   const totalEl = document.getElementById('vuelo-total-' + id);
@@ -5258,7 +5232,7 @@ function renderVuelosList() {
   }
 
   tbody.innerHTML = vuelos.map(v => {
-    const tco2e = ((+v.kgAvca||0) * (+v.viajeros||1)) / 1000;  // =(kgAvca×viajeros)/1000
+    const tco2e = v.tco2e !== undefined ? v.tco2e : (v.kgAvca * v.viajeros * v.trayectos) / 1000;
     return `<tr>
       <td>
         <select onchange="updateVuelo(${v.id},'mes',this.value)"
@@ -5297,7 +5271,6 @@ function renderVuelosList() {
           <input type="number" value="${v.kgAvca||''}" min="0" step="0.01" placeholder="kg CO₂"
             style="width:80px;padding:5px 8px;border:1px solid #ddd6fe;border-radius:5px;font-size:13px;font-family:'DM Sans',sans-serif;text-align:right;outline:none;background:#f5f3ff"
             oninput="updateVuelo(${v.id},'kgAvca',this.value.replace(',','.'))">
-
           <span style="font-size:11px;color:var(--muted);white-space:nowrap">kg</span>
         </div>
         <div style="font-size:10px;color:var(--muted);margin-top:2px;text-align:right">
@@ -5319,12 +5292,9 @@ function renderVuelosList() {
 let chartHuellaPie = null, chartHuellaScope = null;
 
 function calcHuella() {
-  // ─── Aéreo (suma de viajeros × trayectos × kg Avianca CHOOOSE) ───
+  // ─── Aéreo: (kgAvca × viajeros) / 1000  — igual que Excel =(H*I)/1000 ───
   const tAereo = (huellaDB.vuelos||[]).reduce((a,v) => {
-    // Siempre recalcular en vivo: kgAvca × viajeros × 2 / 1000
-    const kg = +v.kgAvca || 0;
-    const vj = +v.viajeros || 1;
-    const t  = kg * vj / 1000;  // =(H*I)/1000 — igual que Excel
+    const t = ((+v.kgAvca||0) * (+v.viajeros||1)) / 1000;  // siempre en vivo
     return a + (isNaN(t) ? 0 : t);
   }, 0);
   const elResAereo = document.getElementById('res-aereo');
@@ -5414,15 +5384,14 @@ function calcHuella() {
     arbolesEl.textContent = '🌳 ' + arboles.toLocaleString('es-CO') + ' árboles';
   }
 
-  // Persist al año seleccionado — NUNCA mezclar años
-  const _añoCalc = parseInt(document.getElementById('huella-año')?.value) || huellaDB.año || 2025;
-  huellaDB.año     = _añoCalc;
-  huellaDB.km      = km;
-  huellaDB.kwh     = kwh;
-  huellaDB.m3      = m3;
-  huellaDB.res_org   = resOrg;
+  const _añoC = parseInt(document.getElementById('huella-año')?.value)||huellaDB.año||2025;
+  huellaDB.año = _añoC;
+  huellaDB.km = km;
+  huellaDB.kwh = kwh;
+  huellaDB.m3 = m3;
+  huellaDB.res_org = resOrg;
   huellaDB.res_inorg = resInorg;
-  huellaDB.res_rec   = resRec;
+  huellaDB.res_rec = resRec;
   saveHuellaDB();
 
   // Charts
