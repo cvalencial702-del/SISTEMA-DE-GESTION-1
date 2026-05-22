@@ -4714,8 +4714,7 @@ async function guardarInforme() {
     });
     showToast(`✅ Informe guardado correctamente (#${id})`);
     // Punto verde en nav item
-    const navInf = document.querySelector('[onclick="navTo('informes', this)"]') ||
-                   document.querySelector("[onclick*="navTo('informes'"]");
+    const navInf = document.querySelector("[onclick*='informes']");
     if (navInf && !navInf.querySelector('.inf-new-dot')) {
       const d = document.createElement('span');
       d.className = 'inf-new-dot';
