@@ -2482,8 +2482,7 @@ async function sbLoadInformes() {
   const { data, error } = await sb
     .from('eco_informes')
     .select('id,año,trimestre,titulo,org,responsable,fecha_gen,resumen,ts')
-    .order('año', { ascending: false })
-    .order('trimestre', { ascending: false });
+    .order('año', { ascending: false });
   if (error) { console.error('sbLoadInformes', error); return; }
   _informesCache = data || [];
 }
