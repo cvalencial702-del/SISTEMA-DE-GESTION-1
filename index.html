@@ -2346,9 +2346,18 @@ const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 let _sb = null;
 function getSB() {
   if (_sb) return _sb;
-  _sb = window.supabase.createClient(SB_URL, SB_ANON, {
-    realtime: { params: { eventsPerSecond: 10 } }
-  });
+  if (!window.supabase || !window.supabase.createClient) {
+    console.warn('Supabase SDK no disponible aún');
+    return null;
+  }
+  try {
+    _sb = window.supabase.createClient(SB_URL, SB_ANON, {
+      realtime: { params: { eventsPerSecond: 10 } }
+    });
+  } catch(e) {
+    console.error('getSB error:', e);
+    return null;
+  }
   return _sb;
 }
 
@@ -2371,6 +2380,7 @@ function setSBStatus(status) {
 let _realtimeCh = null;
 function initRealtime() {
   const sb = getSB();
+  if (!sb) { console.warn('initRealtime: SB no disponible'); return; }
   if (_realtimeCh) sb.removeChannel(_realtimeCh);
   _realtimeCh = sb.channel('eco-sync')
     .on('postgres_changes', { event:'*', schema:'public', table:'eco_agua'        }, () => sbLoadAgua().then(()=>{ renderMiniTablaAgua(); renderDashboard(); renderTabla(); initIndicadores(); }))
@@ -2398,31 +2408,36 @@ async function sbLoadAll() {
 }
 
 async function sbLoadAgua() {
-  const { data, error } = await getSB().from('eco_agua').select('*').order('año', {ascending:false});
+  const sb = getSB(); if (!sb) return;
+  const { data, error } = await sb.from('eco_agua').select('*').order('año', {ascending:false});
   if (error || !data) return;
   db.agua = data.map(r => ({ id:r.id, año:+r.año, bimestre:+r.bimestre, consumo:+r.consumo, calle102:+r.calle102, calle103:+r.calle103, obs:r.obs||'', ts:r.ts }));
   saveDB();
 }
 async function sbLoadEnergia() {
-  const { data, error } = await getSB().from('eco_energia').select('*').order('año', {ascending:false});
+  const sb = getSB(); if (!sb) return;
+  const { data, error } = await sb.from('eco_energia').select('*').order('año', {ascending:false});
   if (error || !data) return;
   db.energia = data.map(r => ({ id:r.id, año:+r.año, mes:+r.mes, consumo:+r.consumo, calle102:+r.calle102, calle103:+r.calle103, obs:r.obs||'', ts:r.ts }));
   saveDB();
 }
 async function sbLoadResiduos() {
-  const { data, error } = await getSB().from('eco_residuos').select('*').order('año', {ascending:false});
+  const sb = getSB(); if (!sb) return;
+  const { data, error } = await sb.from('eco_residuos').select('*').order('año', {ascending:false});
   if (error || !data) return;
   db.residuos = data.map(r => ({ id:r.id, año:+r.año, mes:+r.mes, organico:+r.organico, inorganico:+r.inorganico, reciclable:+r.reciclable, detalleOrg:r.detalle_org||{}, detalleInorg:r.detalle_inorg||{}, reciclables:r.reciclables||{}, obs:r.obs||'', ts:r.ts }));
   saveDB();
 }
 async function sbLoadReciclables() {
-  const { data, error } = await getSB().from('eco_reciclables').select('*').order('created_at');
+  const sb = getSB(); if (!sb) return;
+  const { data, error } = await sb.from('eco_reciclables').select('*').order('created_at');
   if (error || !data) return;
   db.reciclables = data.map(r => ({ id:r.id, nombre:r.nombre, unidad:r.unidad, desc:r.descripcion||'' }));
   saveDB();
 }
 async function sbLoadHuella() {
-  const { data, error } = await getSB().from('eco_huella').select('*').order('año', {ascending:false});
+  const sb = getSB(); if (!sb) return;
+  const { data, error } = await sb.from('eco_huella').select('*').order('año', {ascending:false});
   if (error || !data || !data.length) return;
   const records = data.map(r => ({ año:r.año, ts:r.ts, fecha:r.fecha, tAereo:+r.t_aereo, tTerrestre:+r.t_terrestre, tEnergia:+r.t_energia, tAgua:+r.t_agua, tResiduos:+r.t_residuos, total:+r.total, km:+r.km, kwh:+r.kwh, m3:+r.m3, vuelos:r.vuelos||[] }));
   localStorage.setItem('huella_records_v1', JSON.stringify(records));
@@ -2430,30 +2445,36 @@ async function sbLoadHuella() {
 
 // ── Escritura (upsert) ─────────────────────────────────────────────────────
 async function sbSaveAgua(rec) {
-  await getSB().from('eco_agua').upsert({ año:rec.año, bimestre:rec.bimestre, consumo:rec.consumo, calle102:rec.calle102, calle103:rec.calle103, obs:rec.obs||'', ts:rec.ts }, { onConflict:'año,bimestre' });
+  const sb = getSB(); if (!sb) return;
+  await sb.from('eco_agua').upsert({ año:rec.año, bimestre:rec.bimestre, consumo:rec.consumo, calle102:rec.calle102, calle103:rec.calle103, obs:rec.obs||'', ts:rec.ts }, { onConflict:'año,bimestre' });
 }
 async function sbSaveEnergia(rec) {
-  await getSB().from('eco_energia').upsert({ año:rec.año, mes:rec.mes, consumo:rec.consumo, calle102:rec.calle102, calle103:rec.calle103, obs:rec.obs||'', ts:rec.ts }, { onConflict:'año,mes' });
+  const sb = getSB(); if (!sb) return;
+  await sb.from('eco_energia').upsert({ año:rec.año, mes:rec.mes, consumo:rec.consumo, calle102:rec.calle102, calle103:rec.calle103, obs:rec.obs||'', ts:rec.ts }, { onConflict:'año,mes' });
 }
 async function sbSaveResiduos(rec) {
-  await getSB().from('eco_residuos').upsert({ año:rec.año, mes:rec.mes, organico:rec.organico, inorganico:rec.inorganico, reciclable:rec.reciclable, detalle_org:rec.detalleOrg||{}, detalle_inorg:rec.detalleInorg||{}, reciclables:rec.reciclables||{}, obs:rec.obs||'', ts:rec.ts }, { onConflict:'año,mes' });
+  const sb = getSB(); if (!sb) return;
+  await sb.from('eco_residuos').upsert({ año:rec.año, mes:rec.mes, organico:rec.organico, inorganico:rec.inorganico, reciclable:rec.reciclable, detalle_org:rec.detalleOrg||{}, detalle_inorg:rec.detalleInorg||{}, reciclables:rec.reciclables||{}, obs:rec.obs||'', ts:rec.ts }, { onConflict:'año,mes' });
 }
 async function sbSaveReciclable(rec) {
-  await getSB().from('eco_reciclables').upsert({ id:rec.id, nombre:rec.nombre, unidad:rec.unidad, descripcion:rec.desc||'' }, { onConflict:'id' });
+  const sb = getSB(); if (!sb) return;
+  await sb.from('eco_reciclables').upsert({ id:rec.id, nombre:rec.nombre, unidad:rec.unidad, descripcion:rec.desc||'' }, { onConflict:'id' });
 }
 async function sbSaveHuella(rec) {
-  await getSB().from('eco_huella').upsert({ año:rec.año, total:rec.total, t_aereo:rec.tAereo||0, t_terrestre:rec.tTerrestre||0, t_energia:rec.tEnergia||0, t_agua:rec.tAgua||0, t_residuos:rec.tResiduos||0, km:rec.km||0, kwh:rec.kwh||0, m3:rec.m3||0, vuelos:rec.vuelos||[], fecha:rec.fecha||'', ts:rec.ts||Date.now() }, { onConflict:'año' });
+  const sb = getSB(); if (!sb) return;
+  await sb.from('eco_huella').upsert({ año:rec.año, total:rec.total, t_aereo:rec.tAereo||0, t_terrestre:rec.tTerrestre||0, t_energia:rec.tEnergia||0, t_agua:rec.tAgua||0, t_residuos:rec.tResiduos||0, km:rec.km||0, kwh:rec.kwh||0, m3:rec.m3||0, vuelos:rec.vuelos||[], fecha:rec.fecha||'', ts:rec.ts||Date.now() }, { onConflict:'año' });
 }
-async function sbDeleteAgua(id)      { await getSB().from('eco_agua').delete().eq('id', id); }
-async function sbDeleteEnergia(id)   { await getSB().from('eco_energia').delete().eq('id', id); }
-async function sbDeleteResiduos(id)  { await getSB().from('eco_residuos').delete().eq('id', id); }
-async function sbDeleteReciclable(id){ await getSB().from('eco_reciclables').delete().eq('id', id); }
+async function sbDeleteAgua(id)      { const sb = getSB(); if (!sb) return; await sb.from('eco_agua').delete().eq('id', id); }
+async function sbDeleteEnergia(id)   { const sb = getSB(); if (!sb) return; await sb.from('eco_energia').delete().eq('id', id); }
+async function sbDeleteResiduos(id)  { const sb = getSB(); if (!sb) return; await sb.from('eco_residuos').delete().eq('id', id); }
+async function sbDeleteReciclable(id){ const sb = getSB(); if (!sb) return; await sb.from('eco_reciclables').delete().eq('id', id); }
 
 // ── INFORMES ──────────────────────────────────────────────────────────────
 let _informesCache = [];
 
 async function sbLoadInformes() {
-  const { data, error } = await getSB()
+  const sb = getSB(); if (!sb) return;
+  const { data, error } = await sb
     .from('eco_informes')
     .select('id,año,trimestre,titulo,org,responsable,fecha_gen,resumen,ts')
     .order('año', { ascending: false })
@@ -2491,7 +2512,8 @@ async function sbGetInformeHTML(id) {
 }
 
 async function sbDeleteInforme(id) {
-  const { error } = await getSB().from('eco_informes').delete().eq('id', id);
+  const sb = getSB(); if (!sb) return;
+  const { error } = await sb.from('eco_informes').delete().eq('id', id);
   if (error) { console.error('sbDeleteInforme', error); }
 }
 
@@ -2504,7 +2526,6 @@ const DB_KEY = 'ecotrack_v2';
 // Datos precargados — se usan solo si localStorage está vacío
 const DATOS_INICIALES = {"agua":[],"energia":[],"residuos":[],"reciclables":[]};
 
-let db
 let db = {
   agua: [],
   energia: [],
@@ -2574,15 +2595,14 @@ function navTo(page, el) {
 
   if (page === 'dashboard')   renderDashboard();
   if (page === 'registros')   renderTabla();
-  if (page === 'agua')        { sbLoadAgua().then(()=>renderMiniTablaAgua()); renderMiniTablaAgua(); }
-  if (page === 'energia')     { sbLoadEnergia().then(()=>renderMiniTablaEnergia()); renderMiniTablaEnergia(); }
-  if (page === 'residuos')    { sbLoadResiduos().then(()=>{ renderMiniTablaResiduos(); renderReciclablesInputs(); }); renderMiniTablaResiduos(); renderReciclablesInputs(); }
-  if (page === 'reciclables') { sbLoadReciclables().then(()=>renderListaReciclables()); renderListaReciclables(); }
-  if (page === 'indicadores') { Promise.all([sbLoadAgua(),sbLoadEnergia(),sbLoadResiduos()]).then(()=>initIndicadores()); initIndicadores(); }
+  if (page === 'agua')        renderMiniTablaAgua();
+  if (page === 'energia')     renderMiniTablaEnergia();
+  if (page === 'residuos')    { renderMiniTablaResiduos(); renderReciclablesInputs(); }
+  if (page === 'reciclables') renderListaReciclables();
+  if (page === 'indicadores') initIndicadores();
   if (page === 'asistente')   initGeminiKeyUI();
   if (page === 'huella')      initHuella();
-  if (page === 'informes')    sbLoadInformes().then(renderInformesList);
-  if (page === 'informes') sbLoadInformes().then(renderInformesList);
+  if (page === 'informes')    { sbLoadInformes().then(renderInformesList); renderInformesList(); }
 }
 
 // ============================================================
@@ -3958,28 +3978,43 @@ document.getElementById('res-mes').value = now.getMonth()+1;
 document.getElementById('rep-trimestre').value = Math.ceil((now.getMonth()+1)/3);
 
 loadDB(); // cache local mientras carga SB
-sbLoadAll().then(() => {
-  renderDashboard();
-  renderListaReciclables();
-  renderTabla();
-  renderMiniTablaAgua();
-  renderMiniTablaEnergia();
-  renderMiniTablaResiduos();
-  renderReciclablesInputs();
-  initIndicadores();
-  setTimeout(initGeminiKeyUI, 100);
-  const activePage = document.querySelector('.page.active');
-  if (activePage) {
-    const pageId = activePage.id.replace('page-', '');
-    if (pageId === 'agua')        renderMiniTablaAgua();
-    if (pageId === 'energia')     renderMiniTablaEnergia();
-    if (pageId === 'residuos')    { renderMiniTablaResiduos(); renderReciclablesInputs(); }
-    if (pageId === 'reciclables') renderListaReciclables();
-    if (pageId === 'indicadores') initIndicadores();
-    if (pageId === 'registros')   renderTabla();
-    if (pageId === 'huella')      initHuella();
+
+// Esperar a que el SDK de Supabase esté disponible antes de conectar
+function _initSB(retries) {
+  if (window.supabase && window.supabase.createClient) {
+    sbLoadAll().then(() => {
+      renderDashboard();
+      renderListaReciclables();
+      renderTabla();
+      renderMiniTablaAgua();
+      renderMiniTablaEnergia();
+      renderMiniTablaResiduos();
+      renderReciclablesInputs();
+      initIndicadores();
+      setTimeout(initGeminiKeyUI, 100);
+      const ap = document.querySelector('.page.active');
+      if (ap) {
+        const pid = ap.id.replace('page-', '');
+        if (pid === 'agua')        renderMiniTablaAgua();
+        if (pid === 'energia')     renderMiniTablaEnergia();
+        if (pid === 'residuos')    { renderMiniTablaResiduos(); renderReciclablesInputs(); }
+        if (pid === 'reciclables') renderListaReciclables();
+        if (pid === 'indicadores') initIndicadores();
+        if (pid === 'registros')   renderTabla();
+        if (pid === 'huella')      initHuella();
+      }
+    });
+  } else if (retries > 0) {
+    setTimeout(() => _initSB(retries - 1), 200);
+  } else {
+    setSBStatus('offline');
+    showToast('⚠️ Sin conexión — cargando datos locales', 'error');
+    renderDashboard();
+    renderListaReciclables();
+    setTimeout(initGeminiKeyUI, 100);
   }
-});
+}
+_initSB(15); // hasta 3 segundos de espera
 
 // Auto-sum calle 102 + 103 → total
 function setupAutoSum(c102id, c103id, totalId) {
