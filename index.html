@@ -1889,7 +1889,7 @@
             <div class="inline-alert info" style="margin-bottom:14px">
               <span>💡</span>
               <div>Para cada trayecto, consulta <a href="https://avianca.chooose.today/" target="_blank" style="color:var(--water);font-weight:600">avianca.chooose.today</a>
-              e ingresa el valor de CO₂ por pasajero que entrega la calculadora. El sistema multiplica ese valor por el número de viajes (personas × ida/vuelta).</div>
+              e ingresa el valor de CO₂ por pasajero que entrega la calculadora. El sistema multiplica ese valor por el número de viajeros. Fórmula: (kg CO₂ × viajeros) ÷ 1000 = t CO₂e</div>
             </div>
 
             <!-- TABLA DE DESPLAZAMIENTOS -->
@@ -5230,12 +5230,14 @@ function updateVuelo(id, field, value) {
   const v = (huellaDB.vuelos||[]).find(x => x.id == id);
   if (!v) return;
   if (field === 'viajeros' || field === 'trayectos' || field === 'kgAvca') {
-    v[field] = parseFloat(value) || 0;
+    // Normalizar coma decimal (26,245 → 26.245)
+    const normalized = typeof value === 'string' ? value.replace(',', '.') : value;
+    v[field] = parseFloat(normalized) || 0;
   } else {
     v[field] = value;
   }
   // recalc tco2e for this row
-  v.tco2e = (v.kgAvca * (v.viajeros || 1) * 2) / 1000;
+  v.tco2e = ((+v.kgAvca||0) * (+v.viajeros||1)) / 1000;  // =(H*I)/1000 igual que Excel
   saveHuellaDB();
   // update total cell for this row
   const totalEl = document.getElementById('vuelo-total-' + id);
@@ -5256,7 +5258,7 @@ function renderVuelosList() {
   }
 
   tbody.innerHTML = vuelos.map(v => {
-    const tco2e = v.tco2e !== undefined ? v.tco2e : (v.kgAvca * v.viajeros * v.trayectos) / 1000;
+    const tco2e = ((+v.kgAvca||0) * (+v.viajeros||1)) / 1000;  // =(kgAvca×viajeros)/1000
     return `<tr>
       <td>
         <select onchange="updateVuelo(${v.id},'mes',this.value)"
@@ -5294,7 +5296,8 @@ function renderVuelosList() {
         <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
           <input type="number" value="${v.kgAvca||''}" min="0" step="0.01" placeholder="kg CO₂"
             style="width:80px;padding:5px 8px;border:1px solid #ddd6fe;border-radius:5px;font-size:13px;font-family:'DM Sans',sans-serif;text-align:right;outline:none;background:#f5f3ff"
-            oninput="updateVuelo(${v.id},'kgAvca',this.value)">
+            oninput="updateVuelo(${v.id},'kgAvca',this.value.replace(',','.'))">
+
           <span style="font-size:11px;color:var(--muted);white-space:nowrap">kg</span>
         </div>
         <div style="font-size:10px;color:var(--muted);margin-top:2px;text-align:right">
@@ -5318,8 +5321,11 @@ let chartHuellaPie = null, chartHuellaScope = null;
 function calcHuella() {
   // ─── Aéreo (suma de viajeros × trayectos × kg Avianca CHOOOSE) ───
   const tAereo = (huellaDB.vuelos||[]).reduce((a,v) => {
-    const t = v.tco2e !== undefined ? v.tco2e : (v.kgAvca * (v.viajeros||1) * 2) / 1000;
-    return a + t;
+    // Siempre recalcular en vivo: kgAvca × viajeros × 2 / 1000
+    const kg = +v.kgAvca || 0;
+    const vj = +v.viajeros || 1;
+    const t  = kg * vj / 1000;  // =(H*I)/1000 — igual que Excel
+    return a + (isNaN(t) ? 0 : t);
   }, 0);
   const elResAereo = document.getElementById('res-aereo');
   if (elResAereo) elResAereo.textContent = tAereo.toFixed(4) + ' t CO₂e';
