@@ -936,6 +936,9 @@
       <div class="nav-item" onclick="navTo(&#39;reporte&#39;, this)">
         <span class="icon">📄</span> Informe Trimestral
       </div>
+      <div class="nav-item" onclick="navTo(&#39;informes&#39;, this)">
+        <span class="icon">🗂️</span> PDFs Guardados
+      </div>
 
       <div class="nav-section-label" style="margin-top:12px">Huella de Carbono</div>
       <div class="nav-item" onclick="navTo(&#39;huella&#39;, this)">
@@ -1532,6 +1535,7 @@
           <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
             <button class="btn btn-primary" onclick="generarReporte()">👁️ Previsualizar Informe</button>
             <button class="btn btn-ghost" onclick="descargarPDF()">⬇️ Descargar PDF</button>
+            <button class="btn btn-primary" onclick="guardarInforme()" style="background:linear-gradient(135deg,#1a4d2e,#2d7a4a);box-shadow:0 2px 8px rgba(26,77,46,0.3)">💾 Guardar Informe</button>
           </div>
         </div>
 
@@ -1539,6 +1543,51 @@
         <div id="reportPreview"></div>
       </div>
 
+
+      <!-- ===== INFORMES GUARDADOS ===== -->
+      <div id="page-informes" class="page">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--navy)">🗂️ Informes Guardados</div>
+            <div style="font-size:13px;color:var(--muted);margin-top:3px">Historial de informes trimestrales — sincronizados en todos los dispositivos</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="sbLoadInformes().then(renderInformesList)">🔄 Actualizar</button>
+        </div>
+        <!-- FILTROS -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+          <select id="inf-filtro-año" onchange="renderInformesList()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fff;color:var(--navy);outline:none">
+            <option value="">Todos los años</option>
+            <option value="2022">2022</option><option value="2023">2023</option>
+            <option value="2024">2024</option><option value="2025">2025</option>
+            <option value="2026">2026</option>
+          </select>
+          <select id="inf-filtro-trim" onchange="renderInformesList()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fff;color:var(--navy);outline:none">
+            <option value="">Todos los trimestres</option>
+            <option value="1">T1 · Ene–Mar</option><option value="2">T2 · Abr–Jun</option>
+            <option value="3">T3 · Jul–Sep</option><option value="4">T4 · Oct–Dic</option>
+          </select>
+        </div>
+        <!-- LISTA -->
+        <div id="informes-list">
+          <div class="card" style="text-align:center;color:var(--muted);padding:40px">
+            <div style="font-size:32px;margin-bottom:12px">🗂️</div>
+            <div style="font-size:14px">Cargando informes…</div>
+          </div>
+        </div>
+        <!-- MODAL VISOR -->
+        <div id="inf-viewer-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;overflow-y:auto;padding:24px">
+          <div style="max-width:900px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;position:relative">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+              <div id="inf-viewer-title" style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:#1b2e4b"></div>
+              <div style="display:flex;gap:8px">
+                <button onclick="descargarPDFViewer()" style="background:#1a4d2e;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer">⬇️ Descargar PDF</button>
+                <button onclick="document.getElementById('inf-viewer-overlay').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer">✕ Cerrar</button>
+              </div>
+            </div>
+            <div id="inf-viewer-content" style="font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.6"></div>
+          </div>
+        </div>
+      </div>
 
       <!-- ===== INDICADORES ===== -->
       <div id="page-indicadores" class="page">
@@ -2324,11 +2373,12 @@ function initRealtime() {
   const sb = getSB();
   if (_realtimeCh) sb.removeChannel(_realtimeCh);
   _realtimeCh = sb.channel('eco-sync')
-    .on('postgres_changes', { event:'*', schema:'public', table:'eco_agua'        }, () => sbLoadAgua().then(()=>{ renderMiniTablaAgua(); renderDashboard(); }))
-    .on('postgres_changes', { event:'*', schema:'public', table:'eco_energia'     }, () => sbLoadEnergia().then(()=>{ renderMiniTablaEnergia(); renderDashboard(); }))
-    .on('postgres_changes', { event:'*', schema:'public', table:'eco_residuos'    }, () => sbLoadResiduos().then(()=>{ renderMiniTablaResiduos(); renderDashboard(); }))
+    .on('postgres_changes', { event:'*', schema:'public', table:'eco_agua'        }, () => sbLoadAgua().then(()=>{ renderMiniTablaAgua(); renderDashboard(); renderTabla(); initIndicadores(); }))
+    .on('postgres_changes', { event:'*', schema:'public', table:'eco_energia'     }, () => sbLoadEnergia().then(()=>{ renderMiniTablaEnergia(); renderDashboard(); renderTabla(); initIndicadores(); }))
+    .on('postgres_changes', { event:'*', schema:'public', table:'eco_residuos'    }, () => sbLoadResiduos().then(()=>{ renderMiniTablaResiduos(); renderDashboard(); renderTabla(); initIndicadores(); }))
     .on('postgres_changes', { event:'*', schema:'public', table:'eco_reciclables' }, () => sbLoadReciclables().then(()=>{ renderListaReciclables(); renderReciclablesInputs(); }))
     .on('postgres_changes', { event:'*', schema:'public', table:'eco_huella'      }, () => sbLoadHuella().then(()=>renderHuellaRecords()))
+    .on('postgres_changes', { event:'*', schema:'public', table:'eco_informes'    }, () => sbLoadInformes().then(renderInformesList))
     .subscribe(s => setSBStatus(s === 'SUBSCRIBED' ? 'online' : s === 'CHANNEL_ERROR' ? 'offline' : 'connecting'));
 }
 
@@ -2336,12 +2386,14 @@ function initRealtime() {
 async function sbLoadAll() {
   setSBStatus('connecting');
   try {
-    await Promise.all([sbLoadAgua(), sbLoadEnergia(), sbLoadResiduos(), sbLoadReciclables(), sbLoadHuella()]);
+    await Promise.all([sbLoadAgua(), sbLoadEnergia(), sbLoadResiduos(), sbLoadReciclables(), sbLoadHuella(), sbLoadInformes()]);
     setSBStatus('online');
     initRealtime();
+    showToast('☁️ Datos cargados desde Supabase');
   } catch(e) {
-    console.error('sbLoadAll', e);
+    console.error('sbLoadAll error:', e);
     setSBStatus('offline');
+    showToast('⚠️ Sin conexión — usando datos locales', 'error');
   }
 }
 
@@ -2397,6 +2449,52 @@ async function sbDeleteEnergia(id)   { await getSB().from('eco_energia').delete(
 async function sbDeleteResiduos(id)  { await getSB().from('eco_residuos').delete().eq('id', id); }
 async function sbDeleteReciclable(id){ await getSB().from('eco_reciclables').delete().eq('id', id); }
 
+// ── INFORMES ──────────────────────────────────────────────────────────────
+let _informesCache = [];
+
+async function sbLoadInformes() {
+  const { data, error } = await getSB()
+    .from('eco_informes')
+    .select('id,año,trimestre,titulo,org,responsable,fecha_gen,resumen,ts')
+    .order('año', { ascending: false })
+    .order('trimestre', { ascending: false });
+  if (error) { console.error('sbLoadInformes', error); return; }
+  _informesCache = data || [];
+}
+
+async function sbSaveInforme(rec) {
+  const { data, error } = await getSB().from('eco_informes').insert({
+    año:          rec.año,
+    trimestre:    rec.trimestre,
+    titulo:       rec.titulo,
+    org:          rec.org || '',
+    responsable:  rec.responsable || '',
+    obs:          rec.obs || '',
+    compromisos:  rec.compromisos || '',
+    html_content: rec.html_content || '',
+    resumen:      rec.resumen || {},
+    fecha_gen:    rec.fecha_gen || '',
+    ts:           Date.now()
+  }).select('id').single();
+  if (error) { console.error('sbSaveInforme', error); throw error; }
+  return data?.id;
+}
+
+async function sbGetInformeHTML(id) {
+  const { data, error } = await getSB()
+    .from('eco_informes')
+    .select('html_content,titulo,año,trimestre')
+    .eq('id', id)
+    .single();
+  if (error) { console.error('sbGetInformeHTML', error); return null; }
+  return data;
+}
+
+async function sbDeleteInforme(id) {
+  const { error } = await getSB().from('eco_informes').delete().eq('id', id);
+  if (error) { console.error('sbDeleteInforme', error); }
+}
+
 
 // ============================================================
 // DATA STORE
@@ -2404,8 +2502,9 @@ async function sbDeleteReciclable(id){ await getSB().from('eco_reciclables').del
 const DB_KEY = 'ecotrack_v2';
 
 // Datos precargados — se usan solo si localStorage está vacío
-const DATOS_INICIALES = {"agua":[{"id":1773935592164.0571,"año":2026,"bimestre":5,"consumo":5,"calle102":5,"calle103":0,"obs":"","ts":1773935592164},{"id":1773929830277.0906,"año":2026,"bimestre":4,"consumo":6,"calle102":5,"calle103":1,"obs":"","ts":1773929830277},{"id":1773929768752.6978,"año":2025,"bimestre":6,"consumo":7,"calle102":6,"calle103":1,"obs":"","ts":1773929768752},{"id":1773929759658.267,"año":2025,"bimestre":5,"consumo":6,"calle102":6,"calle103":0,"obs":"","ts":1773929759658},{"id":1773929749890.0334,"año":2025,"bimestre":4,"consumo":4,"calle102":4,"calle103":0,"obs":"","ts":1773929749890},{"id":1773929793373.236,"año":2025,"bimestre":3,"consumo":5,"calle102":5,"calle103":0,"obs":"","ts":1773929793373},{"id":1773929785641.604,"año":2025,"bimestre":2,"consumo":6,"calle102":6,"calle103":0,"obs":"","ts":1773929785641},{"id":1773929778384.498,"año":2025,"bimestre":1,"consumo":6,"calle102":5,"calle103":1,"obs":"","ts":1773929778384},{"id":1773929674245.135,"año":2024,"bimestre":6,"consumo":7,"calle102":7,"calle103":0,"obs":"","ts":1773929674245},{"id":1773929607758.5845,"año":2024,"bimestre":5,"consumo":17,"calle102":16,"calle103":1,"obs":"","ts":1773929607758},{"id":1773929599161.3284,"año":2024,"bimestre":4,"consumo":6,"calle102":6,"calle103":0,"obs":"","ts":1773929599161},{"id":1773932199359.1536,"año":2024,"bimestre":3,"consumo":5,"calle102":5,"calle103":0,"obs":"","ts":1773932199359},{"id":1773932188457.3162,"año":2024,"bimestre":2,"consumo":7,"calle102":7,"calle103":0,"obs":"","ts":1773932188457},{"id":1773932173494.4807,"año":2024,"bimestre":1,"consumo":6,"calle102":6,"calle103":0,"obs":"","ts":1773932173494},{"id":1773929539585.33,"año":2023,"bimestre":6,"consumo":4,"calle102":3,"calle103":1,"obs":"","ts":1773929539585},{"id":1773929530786.236,"año":2023,"bimestre":5,"consumo":2,"calle102":2,"calle103":0,"obs":"","ts":1773929530786},{"id":1773929522766.2158,"año":2023,"bimestre":4,"consumo":1,"calle102":1,"calle103":0,"obs":"","ts":1773929522766},{"id":1773929556356.5286,"año":2023,"bimestre":2,"consumo":144,"calle102":7,"calle103":137,"obs":"","ts":1773929556356},{"id":1773929546579.44,"año":2023,"bimestre":1,"consumo":31,"calle102":5,"calle103":26,"obs":"","ts":1773929546579},{"id":1773929431819.6528,"año":2022,"bimestre":6,"consumo":230,"calle102":8,"calle103":222,"obs":"","ts":1773929431819},{"id":1773929418668.195,"año":2022,"bimestre":5,"consumo":29,"calle102":2,"calle103":27,"obs":"","ts":1773929418668},{"id":1773929407844.6987,"año":2022,"bimestre":4,"consumo":26,"calle102":1,"calle103":25,"obs":"","ts":1773929407844},{"id":1773929463386.7493,"año":2022,"bimestre":3,"consumo":33,"calle102":3,"calle103":30,"obs":"","ts":1773929463386},{"id":1773929453895.119,"año":2022,"bimestre":2,"consumo":117,"calle102":2,"calle103":115,"obs":"","ts":1773929453895},{"id":1773929445094.2976,"año":2022,"bimestre":1,"consumo":126,"calle102":3,"calle103":123,"obs":"","ts":1773929445094}],"energia":[{"id":1773871362221.6172,"año":2026,"mes":3,"consumo":324,"calle102":78,"calle103":246,"obs":"","ts":1773871362221},{"id":1773871333495.401,"año":2026,"mes":2,"consumo":285,"calle102":35,"calle103":250,"obs":"","ts":1773871333495},{"id":1773871286652.502,"año":2026,"mes":1,"consumo":452,"calle102":211,"calle103":241,"obs":"","ts":1773871286652},{"id":1773931243961.083,"año":2025,"mes":12,"consumo":407,"calle102":121,"calle103":286,"obs":"","ts":1773931243961},{"id":1773931232008.602,"año":2025,"mes":11,"consumo":428,"calle102":161,"calle103":267,"obs":"","ts":1773931232008},{"id":1773931221429.6968,"año":2025,"mes":10,"consumo":423,"calle102":143,"calle103":280,"obs":"","ts":1773931221429},{"id":1773931208408.4678,"año":2025,"mes":9,"consumo":375,"calle102":135,"calle103":240,"obs":"","ts":1773931208408},{"id":1773931195951.9624,"año":2025,"mes":8,"consumo":369,"calle102":133,"calle103":236,"obs":"","ts":1773931195951},{"id":1773931185085.0095,"año":2025,"mes":7,"consumo":364,"calle102":118,"calle103":246,"obs":"","ts":1773931185085},{"id":1773931174188.1108,"año":2025,"mes":6,"consumo":395,"calle102":153,"calle103":242,"obs":"","ts":1773931174188},{"id":1773931163478.6304,"año":2025,"mes":5,"consumo":394,"calle102":119,"calle103":275,"obs":"","ts":1773931163478},{"id":1773931152706.3977,"año":2025,"mes":4,"consumo":381,"calle102":152,"calle103":229,"obs":"","ts":1773931152706},{"id":1773931140730.4316,"año":2025,"mes":3,"consumo":396,"calle102":146,"calle103":250,"obs":"","ts":1773931140730},{"id":1773931130934.9912,"año":2025,"mes":2,"consumo":353,"calle102":121,"calle103":232,"obs":"","ts":1773931130934},{"id":1773931120908.9553,"año":2025,"mes":1,"consumo":369,"calle102":90,"calle103":279,"obs":"","ts":1773931120908},{"id":1773931092734.4724,"año":2024,"mes":12,"consumo":371,"calle102":111,"calle103":260,"obs":"","ts":1773931092734},{"id":1773931082852.3098,"año":2024,"mes":11,"consumo":406,"calle102":146,"calle103":260,"obs":"","ts":1773931082852},{"id":1773931072171.8254,"año":2024,"mes":10,"consumo":408,"calle102":142,"calle103":266,"obs":"","ts":1773931072171},{"id":1773931058636.399,"año":2024,"mes":9,"consumo":411,"calle102":149,"calle103":262,"obs":"","ts":1773931058636},{"id":1773931048120.0547,"año":2024,"mes":8,"consumo":436,"calle102":145,"calle103":291,"obs":"","ts":1773931048120},{"id":1773931036192.0488,"año":2024,"mes":7,"consumo":415,"calle102":150,"calle103":265,"obs":"","ts":1773931036192},{"id":1773931025324.457,"año":2024,"mes":6,"consumo":406,"calle102":147,"calle103":259,"obs":"","ts":1773931025324},{"id":1773931014383.1216,"año":2024,"mes":5,"consumo":312,"calle102":111,"calle103":201,"obs":"","ts":1773931014383},{"id":1773931001371.5435,"año":2024,"mes":4,"consumo":378,"calle102":141,"calle103":237,"obs":"","ts":1773931001371},{"id":1773930990505.0166,"año":2024,"mes":3,"consumo":364,"calle102":150,"calle103":214,"obs":"","ts":1773930990505},{"id":1773930979823.0183,"año":2024,"mes":2,"consumo":339,"calle102":131,"calle103":208,"obs":"","ts":1773930979823},{"id":1773930966530.3792,"año":2024,"mes":1,"consumo":392,"calle102":123,"calle103":269,"obs":"","ts":1773930966530},{"id":1773930589173.34,"año":2023,"mes":12,"consumo":395,"calle102":177,"calle103":218,"obs":"","ts":1773930589173},{"id":1773930574533.5317,"año":2023,"mes":11,"consumo":427,"calle102":176,"calle103":251,"obs":"","ts":1773930574533},{"id":1773930560287.1687,"año":2023,"mes":10,"consumo":471,"calle102":203,"calle103":268,"obs":"","ts":1773930560287},{"id":1773930549362.8582,"año":2023,"mes":9,"consumo":470,"calle102":220,"calle103":250,"obs":"","ts":1773930549362},{"id":1773930536875.2263,"año":2023,"mes":8,"consumo":376,"calle102":131,"calle103":245,"obs":"","ts":1773930536875},{"id":1773930526116.5789,"año":2023,"mes":7,"consumo":377,"calle102":129,"calle103":248,"obs":"","ts":1773930526116},{"id":1773930509416.8645,"año":2023,"mes":6,"consumo":399,"calle102":127,"calle103":272,"obs":"","ts":1773930509416},{"id":1773930498138.0503,"año":2023,"mes":5,"consumo":413,"calle102":125,"calle103":288,"obs":"","ts":1773930498138},{"id":1773930477983.9463,"año":2023,"mes":4,"consumo":429,"calle102":135,"calle103":294,"obs":"","ts":1773930477983},{"id":1773930467353.8691,"año":2023,"mes":3,"consumo":413,"calle102":114,"calle103":299,"obs":"","ts":1773930467353},{"id":1773930456811.002,"año":2023,"mes":2,"consumo":413,"calle102":132,"calle103":281,"obs":"","ts":1773930456811},{"id":1773930447671.3704,"año":2023,"mes":1,"consumo":381,"calle102":112,"calle103":269,"obs":"","ts":1773930447671},{"id":1773930121822.4187,"año":2022,"mes":12,"consumo":441,"calle102":123,"calle103":318,"obs":"","ts":1773930121822},{"id":1773930109067.4473,"año":2022,"mes":11,"consumo":309,"calle102":65,"calle103":244,"obs":"","ts":1773930109067},{"id":1773930096470.1184,"año":2022,"mes":10,"consumo":340,"calle102":71,"calle103":269,"obs":"","ts":1773930096470},{"id":1773930085310.1323,"año":2022,"mes":9,"consumo":383,"calle102":93,"calle103":290,"obs":"","ts":1773930085310},{"id":1773930073676.947,"año":2022,"mes":8,"consumo":373,"calle102":115,"calle103":258,"obs":"","ts":1773930073676},{"id":1773930062928.2268,"año":2022,"mes":7,"consumo":491,"calle102":212,"calle103":279,"obs":"","ts":1773930062928},{"id":1773930052380.425,"año":2022,"mes":6,"consumo":620,"calle102":316,"calle103":304,"obs":"","ts":1773930052380},{"id":1773930042469.4788,"año":2022,"mes":5,"consumo":512,"calle102":215,"calle103":297,"obs":"","ts":1773930042469},{"id":1773930032017.6506,"año":2022,"mes":4,"consumo":498,"calle102":200,"calle103":298,"obs":"","ts":1773930032017},{"id":1773930022359.5862,"año":2022,"mes":3,"consumo":466,"calle102":178,"calle103":288,"obs":"","ts":1773930022359},{"id":1773930012817.8582,"año":2022,"mes":2,"consumo":521,"calle102":211,"calle103":310,"obs":"","ts":1773930012817},{"id":1773930002390.0364,"año":2022,"mes":1,"consumo":560,"calle102":249,"calle103":311,"obs":"","ts":1773930002390}],"residuos":[{"id":1773938002898.4607,"año":2025,"mes":12,"organico":13.25,"inorganico":16.25,"reciclable":8,"detalleOrg":{"organico":13.25},"detalleInorg":{"generales":16.25,"peligrosos":0},"reciclables":{"1773868315836":8,"1773868315837":0,"1773868315838":0,"1773931355695.0918":0,"1773931404541.7495":0,"1773931441085.8564":0,"1773931596010.0825":0,"1773931628544.4343":0},"obs":"","ts":1773938002898},{"id":1773931830992.5815,"año":2024,"mes":4,"organico":0,"inorganico":0,"reciclable":130,"detalleOrg":{"compostable":0,"poda":0,"alimentos":0},"detalleInorg":{"generales":0,"sanitarios":0,"peligrosos":0},"reciclables":{"1773868315836":0,"1773868315837":130,"1773868315838":0,"1773931355695.0918":0,"1773931404541.7495":0,"1773931441085.8564":0,"1773931596010.0825":0,"1773931628544.4343":0},"obs":"","ts":1773931830992},{"id":1773931808871.9597,"año":2024,"mes":3,"organico":0,"inorganico":0,"reciclable":4,"detalleOrg":{"compostable":0,"poda":0,"alimentos":0},"detalleInorg":{"generales":0,"sanitarios":0,"peligrosos":0},"reciclables":{"1773868315836":0,"1773868315837":0,"1773868315838":0,"1773931355695.0918":0,"1773931404541.7495":0,"1773931441085.8564":0,"1773931596010.0825":0,"1773931628544.4343":4},"obs":"","ts":1773931808871},{"id":1773931798380.1953,"año":2024,"mes":2,"organico":0,"inorganico":0,"reciclable":72,"detalleOrg":{"compostable":0,"poda":0,"alimentos":0},"detalleInorg":{"generales":0,"sanitarios":0,"peligrosos":0},"reciclables":{"1773868315836":0,"1773868315837":0,"1773868315838":0,"1773931355695.0918":68,"1773931404541.7495":2,"1773931441085.8564":2,"1773931596010.0825":0,"1773931628544.4343":0},"obs":"","ts":1773931798380},{"id":1773931749181.7358,"año":2023,"mes":10,"organico":0,"inorganico":0,"reciclable":13.3,"detalleOrg":{"compostable":0,"poda":0,"alimentos":0},"detalleInorg":{"generales":0,"sanitarios":0,"peligrosos":0},"reciclables":{"1773868315836":0,"1773868315837":0,"1773868315838":0,"1773931355695.0918":0,"1773931404541.7495":0,"1773931441085.8564":0,"1773931596010.0825":5,"1773931628544.4343":8.3},"obs":"Se  dispone de  5k de  baterias  de los procesos de  campañas  con los  colaboradores de la empresa -programa  Ecopila y  8.3  kl  con el programa  punto  azul  generados de los cambios en los botiquines  y  campañas  con el personal directo de la empresa","ts":1773931749181},{"id":1773931556509.108,"año":2023,"mes":9,"organico":0,"inorganico":0,"reciclable":1,"detalleOrg":{"compostable":0,"poda":0,"alimentos":0},"detalleInorg":{"generales":0,"sanitarios":0,"peligrosos":0},"reciclables":{"1773868315836":0,"1773868315837":0,"1773868315838":0,"1773931355695.0918":0,"1773931404541.7495":1,"1773931441085.8564":0},"obs":"","ts":1773931556509},{"id":1773931548280.2605,"año":2023,"mes":8,"organico":0,"inorganico":0,"reciclable":1,"detalleOrg":{"compostable":0,"poda":0,"alimentos":0},"detalleInorg":{"generales":0,"sanitarios":0,"peligrosos":0},"reciclables":{"1773868315836":0,"1773868315837":0,"1773868315838":0,"1773931355695.0918":0,"1773931404541.7495":1,"1773931441085.8564":0},"obs":"","ts":1773931548280},{"id":1773931537652.5015,"año":2023,"mes":7,"organico":0,"inorganico":0,"reciclable":11,"detalleOrg":{"compostable":0,"poda":0,"alimentos":0},"detalleInorg":{"generales":0,"sanitarios":0,"peligrosos":0},"reciclables":{"1773868315836":0,"1773868315837":0,"1773868315838":0,"1773931355695.0918":8,"1773931404541.7495":1,"1773931441085.8564":2},"obs":"kit de mantenimiento de  la impresora  XEROX  8900,  Cambio de  luminarias y  eliminación del a impresora  SO/AC  no tiene arreglo.","ts":1773931537652}],"reciclables":[{"id":1773868315836,"nombre":"Pl\u00e1stico PET","unidad":"kg","desc":""},{"id":1773868315837,"nombre":"Papel / Cart\u00f3n","unidad":"kg","desc":""},{"id":1773868315838,"nombre":"Vidrio","unidad":"kg","desc":""},{"id":1773931355695.0918,"nombre":"Electr\u00f3nicos (RAEE)","unidad":"kg","desc":""},{"id":1773931404541.7495,"nombre":"CARTUCHOS","unidad":"kg","desc":""},{"id":1773931441085.8564,"nombre":"LUMINARIAS","unidad":"kg","desc":""},{"id":1773931596010.0825,"nombre":"PILAS/BATERIAS  AA-AAA-CELULAR-PC","unidad":"kg","desc":""},{"id":1773931628544.4343,"nombre":"MEDICAMENTOS  VENCIDOS","unidad":"kg","desc":""}]};
+const DATOS_INICIALES = {"agua":[],"energia":[],"residuos":[],"reciclables":[]};
 
+let db
 let db = {
   agua: [],
   energia: [],
@@ -2419,9 +2518,8 @@ function loadDB() {
     if (s) {
       db = JSON.parse(s);
     } else {
-      // Primera vez: cargar datos precargados y guardar
-      db = JSON.parse(JSON.stringify(DATOS_INICIALES));
-      saveDB();
+      // Primera vez: empezar vacío — los datos vienen de Supabase
+      db = { agua: [], energia: [], residuos: [], reciclables: [] };
     }
   } catch(e) {
     db = JSON.parse(JSON.stringify(DATOS_INICIALES));
@@ -2454,7 +2552,8 @@ const titles = {
   reporte: 'Informe Trimestral',
   asistente: '🤖 Asistente Ambiental IA',
   huella: '🌍 Huella de Carbono — Protocolo GHG',
-  indicadores: '📐 Indicadores de Cumplimiento'
+  indicadores: '📐 Indicadores de Cumplimiento',
+  informes: '🗂️ PDFs Guardados'
 };
 
 function navTo(page, el) {
@@ -2473,15 +2572,17 @@ function navTo(page, el) {
   }
   document.getElementById('topbarTitle').textContent = titles[page] || page;
 
-  if (page === 'dashboard') renderDashboard();
-  if (page === 'registros') renderTabla();
-  if (page === 'agua') renderMiniTablaAgua();
-  if (page === 'energia') renderMiniTablaEnergia();
-  if (page === 'residuos') { renderMiniTablaResiduos(); renderReciclablesInputs(); }
-  if (page === 'reciclables') renderListaReciclables();
-  if (page === 'indicadores') initIndicadores();
-  if (page === 'asistente') initGeminiKeyUI();
-  if (page === 'huella') initHuella();
+  if (page === 'dashboard')   renderDashboard();
+  if (page === 'registros')   renderTabla();
+  if (page === 'agua')        { sbLoadAgua().then(()=>renderMiniTablaAgua()); renderMiniTablaAgua(); }
+  if (page === 'energia')     { sbLoadEnergia().then(()=>renderMiniTablaEnergia()); renderMiniTablaEnergia(); }
+  if (page === 'residuos')    { sbLoadResiduos().then(()=>{ renderMiniTablaResiduos(); renderReciclablesInputs(); }); renderMiniTablaResiduos(); renderReciclablesInputs(); }
+  if (page === 'reciclables') { sbLoadReciclables().then(()=>renderListaReciclables()); renderListaReciclables(); }
+  if (page === 'indicadores') { Promise.all([sbLoadAgua(),sbLoadEnergia(),sbLoadResiduos()]).then(()=>initIndicadores()); initIndicadores(); }
+  if (page === 'asistente')   initGeminiKeyUI();
+  if (page === 'huella')      initHuella();
+  if (page === 'informes')    sbLoadInformes().then(renderInformesList);
+  if (page === 'informes') sbLoadInformes().then(renderInformesList);
 }
 
 // ============================================================
@@ -3860,7 +3961,24 @@ loadDB(); // cache local mientras carga SB
 sbLoadAll().then(() => {
   renderDashboard();
   renderListaReciclables();
+  renderTabla();
+  renderMiniTablaAgua();
+  renderMiniTablaEnergia();
+  renderMiniTablaResiduos();
+  renderReciclablesInputs();
+  initIndicadores();
   setTimeout(initGeminiKeyUI, 100);
+  const activePage = document.querySelector('.page.active');
+  if (activePage) {
+    const pageId = activePage.id.replace('page-', '');
+    if (pageId === 'agua')        renderMiniTablaAgua();
+    if (pageId === 'energia')     renderMiniTablaEnergia();
+    if (pageId === 'residuos')    { renderMiniTablaResiduos(); renderReciclablesInputs(); }
+    if (pageId === 'reciclables') renderListaReciclables();
+    if (pageId === 'indicadores') initIndicadores();
+    if (pageId === 'registros')   renderTabla();
+    if (pageId === 'huella')      initHuella();
+  }
 });
 
 // Auto-sum calle 102 + 103 → total
@@ -4513,6 +4631,204 @@ function formatMarkdown(text) {
   }
   if (inList) out += '</ul>';
   return out;
+}
+
+// ============================================================
+// INFORMES GUARDADOS
+// ============================================================
+const TRIMESTRE_NOMBRES = ['','T1: Ene–Mar','T2: Abr–Jun','T3: Jul–Sep','T4: Oct–Dic'];
+const INF_DELETE_PWD = '2025';
+
+async function guardarInforme() {
+  const preview = document.getElementById('reportPreview');
+  // Si no hay preview, generarlo primero
+  if (!preview || preview.style.display === 'none' || !preview.innerHTML.trim()) {
+    generarReporte();
+    await new Promise(r => setTimeout(r, 600));
+  }
+  const año       = parseInt(document.getElementById('rep-año').value);
+  const trimestre = parseInt(document.getElementById('rep-trimestre').value);
+  const org       = document.getElementById('rep-org').value || '—';
+  const responsable = document.getElementById('rep-responsable').value || '—';
+  const obs       = document.getElementById('rep-obs').value || '';
+  const compromisos = document.getElementById('rep-compromisos').value || '';
+
+  // Resumen numérico del informe
+  const mesesTrim = getTrimestreMeses(trimestre);
+  const enTrim    = db.energia.filter(r => r.año === año && mesesTrim.includes(r.mes));
+  const enTotal   = enTrim.reduce((a,r) => a + r.consumo, 0);
+  const resTrim   = db.residuos.filter(r => r.año === año && mesesTrim.includes(r.mes));
+  const resTotal  = resTrim.reduce((a,r) => a + r.organico + r.inorganico + r.reciclable, 0);
+  const resRec    = resTrim.reduce((a,r) => a + r.reciclable, 0);
+  const aguaTotal = db.agua.filter(r => r.año === año).reduce((a,r) => a + r.consumo, 0);
+  const pctRec    = resTotal > 0 ? (resRec / resTotal * 100).toFixed(1) : '0';
+
+  const titulo  = `Informe ${TRIMESTRE_NOMBRES[trimestre]} ${año} · ${org}`;
+  const fechaGen = new Date().toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' });
+
+  const btn = document.querySelector('button[onclick="guardarInforme()"]');
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.innerHTML = '⏳ Guardando…'; btn.disabled = true; }
+
+  try {
+    const id = await sbSaveInforme({
+      año, trimestre, titulo, org, responsable, obs, compromisos,
+      html_content: preview.innerHTML,
+      resumen: { enTotal, aguaTotal, resTotal, pctRec },
+      fecha_gen: fechaGen
+    });
+    showToast(`✅ Informe guardado correctamente (#${id})`);
+    // Punto verde en nav item
+    const navInf = document.querySelector('[onclick="navTo('informes', this)"]') ||
+                   document.querySelector("[onclick*="navTo('informes'"]");
+    if (navInf && !navInf.querySelector('.inf-new-dot')) {
+      const d = document.createElement('span');
+      d.className = 'inf-new-dot';
+      d.style.cssText = 'width:7px;height:7px;border-radius:50%;background:#22c55e;margin-left:auto;flex-shrink:0';
+      navInf.appendChild(d);
+    }
+  } catch(e) {
+    showToast('❌ Error al guardar el informe', 'error');
+  } finally {
+    if (btn) { btn.innerHTML = orig; btn.disabled = false; }
+  }
+}
+
+function renderInformesList() {
+  const container = document.getElementById('informes-list');
+  if (!container) return;
+
+  const filtroAño  = parseInt(document.getElementById('inf-filtro-año')?.value) || 0;
+  const filtroTrim = parseInt(document.getElementById('inf-filtro-trim')?.value) || 0;
+
+  let data = [..._informesCache];
+  if (filtroAño)  data = data.filter(r => r.año === filtroAño);
+  if (filtroTrim) data = data.filter(r => r.trimestre === filtroTrim);
+
+  if (!data.length) {
+    container.innerHTML = `
+      <div class="card" style="text-align:center;color:var(--muted);padding:40px">
+        <div style="font-size:36px;margin-bottom:12px">🗂️</div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:6px">Sin informes guardados</div>
+        <div style="font-size:13px">Genera un informe trimestral y haz clic en <strong>💾 Guardar Informe</strong></div>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = data.map(r => {
+    const res = r.resumen || {};
+    const trimNombre = TRIMESTRE_NOMBRES[r.trimestre] || `T${r.trimestre}`;
+    return `
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:10px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;transition:box-shadow 0.2s" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">
+        <!-- Badge año -->
+        <div style="display:flex;align-items:center;justify-content:center;min-width:52px;height:52px;border-radius:10px;background:linear-gradient(135deg,#1b2e4b,#2d4a7a);color:#fff;font-family:'Syne',sans-serif;font-size:12px;font-weight:800;flex-shrink:0;text-align:center;line-height:1.2">
+          ${r.año}<br><span style="font-size:10px;opacity:0.8">T${r.trimestre}</span>
+        </div>
+        <!-- Info -->
+        <div style="flex:1;min-width:200px">
+          <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--navy)">${r.titulo || `Informe ${trimNombre} ${r.año}`}</div>
+          <div style="display:flex;gap:16px;margin-top:6px;flex-wrap:wrap">
+            <span style="font-size:11px;color:var(--muted)">📅 ${r.fecha_gen || '—'}</span>
+            ${r.org ? `<span style="font-size:11px;color:var(--muted)">🏢 ${r.org}</span>` : ''}
+            ${r.responsable ? `<span style="font-size:11px;color:var(--muted)">👤 ${r.responsable}</span>` : ''}
+          </div>
+          <!-- KPIs del resumen -->
+          <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
+            ${res.enTotal ? `<span style="font-size:11px;background:#fef9c3;color:#92400e;padding:2px 8px;border-radius:10px;font-weight:600">⚡ ${(+res.enTotal).toFixed(0)} kWh</span>` : ''}
+            ${res.aguaTotal ? `<span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:10px;font-weight:600">💧 ${(+res.aguaTotal).toFixed(2)} m³</span>` : ''}
+            ${res.resTotal ? `<span style="font-size:11px;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-weight:600">♻️ ${res.pctRec}% reciclaje</span>` : ''}
+          </div>
+        </div>
+        <!-- Acciones -->
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button onclick="verInforme(${r.id})"
+            style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px">
+            👁️ Ver
+          </button>
+          <button onclick="descargaDirecta(${r.id})"
+            style="background:#1a4d2e;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer">
+            ⬇️ PDF
+          </button>
+          <button onclick="confirmarEliminarInforme(${r.id}, '${(r.titulo||'').replace(/'/g,'')}')"
+            style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer">
+            🗑️
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function verInforme(id) {
+  const overlay = document.getElementById('inf-viewer-overlay');
+  const content = document.getElementById('inf-viewer-content');
+  const title   = document.getElementById('inf-viewer-title');
+  if (!overlay) return;
+  content.innerHTML = '<div style="text-align:center;padding:40px;color:#9ca3af">⏳ Cargando informe…</div>';
+  overlay.style.display = 'block';
+  overlay.dataset.currentId = id;
+  const data = await sbGetInformeHTML(id);
+  if (data) {
+    title.textContent = data.titulo || `Informe T${data.trimestre} ${data.año}`;
+    content.innerHTML = data.html_content || '<p style="color:#9ca3af">Sin contenido</p>';
+  } else {
+    content.innerHTML = '<p style="color:#b91c1c">❌ Error al cargar el informe</p>';
+  }
+}
+
+async function descargaDirecta(id) {
+  const data = await sbGetInformeHTML(id);
+  if (!data) { showToast('Error al cargar el informe','error'); return; }
+  // Crear elemento temporal, renderizar y descargar
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:fixed;left:-9999px;top:0;width:900px;background:#fff;padding:40px;font-family:DM Sans,sans-serif;color:#111';
+  tmp.innerHTML = data.html_content;
+  document.body.appendChild(tmp);
+  showToast('⏳ Generando PDF…');
+  try {
+    const canvas = await html2canvas(tmp, { scale:2, backgroundColor:'#ffffff', useCORS:true, logging:false });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const imgW = pdfW - 20;
+    const imgH = (canvas.height * imgW) / canvas.width;
+    let y = 10, remainH = imgH, page = 0;
+    const pdfH = pdf.internal.pageSize.getHeight();
+    while (remainH > 0) {
+      const sliceH = Math.min(pdfH - 20, remainH);
+      const srcY   = page * (pdfH - 20) / imgH * canvas.height;
+      const srcH   = sliceH / imgH * canvas.height;
+      const sc = document.createElement('canvas');
+      sc.width = canvas.width; sc.height = srcH;
+      sc.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+      if (page > 0) pdf.addPage();
+      pdf.addImage(sc.toDataURL('image/jpeg',0.95), 'JPEG', 10, 10, imgW, sliceH);
+      remainH -= sliceH; page++;
+    }
+    pdf.save(`informe_${data.año}_T${data.trimestre}.pdf`);
+    showToast('✅ PDF descargado');
+  } catch(e) {
+    showToast('Error generando PDF','error');
+  } finally {
+    document.body.removeChild(tmp);
+  }
+}
+
+async function descargarPDFViewer() {
+  const id = document.getElementById('inf-viewer-overlay')?.dataset?.currentId;
+  if (id) await descargaDirecta(parseInt(id));
+}
+
+function confirmarEliminarInforme(id, titulo) {
+  openModal('Eliminar Informe',
+    `<p>¿Deseas eliminar el informe <strong>"${titulo}"</strong>?</p>
+     <p style="font-size:12px;color:var(--muted);margin-top:8px">Esta acción no se puede deshacer.</p>`,
+    async () => {
+      await sbDeleteInforme(id);
+      _informesCache = _informesCache.filter(r => r.id !== id);
+      renderInformesList();
+      showToast('Informe eliminado');
+    }
+  );
 }
 
 // ============================================================
